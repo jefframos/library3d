@@ -1,0 +1,15 @@
+{
+  "name": "asset-library",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local browser and 3D viewer for the asset packs in files/",
+  "scripts": {
+    "scan": "node scripts/scan.mjs",
+    "start": "node server/server.mjs",
+    "dev": "node scripts/scan.mjs && node server/server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

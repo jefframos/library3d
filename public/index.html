@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Asset Library</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <h1>Asset Library</h1>
+      <div class="tabs" role="tablist">
+        <button id="tab-library" type="button" role="tab" class="active" aria-selected="true">Library</button>
+        <button id="tab-optimize" type="button" role="tab" aria-selected="false">Optimize</button>
+      </div>
+
+      <div class="side-panel opt-only">
+        <label class="field" for="o-dir">Folder of models</label>
+        <div class="dest-row">
+          <input id="o-dir" type="text" list="o-recent" placeholder="C:\MyGame\Assets\Models" spellcheck="false" autocomplete="off">
+          <button id="o-browse" type="button">Browse…</button>
+        </div>
+        <datalist id="o-recent"></datalist>
+        <label class="check"><input id="o-recursive" type="checkbox"> Include subfolders</label>
+        <button id="o-load" type="button">Load models</button>
+
+        <h3 class="side-h">Textures</h3>
+        <label class="field">Max size
+          <select id="o-tex-size">
+            <option value="0">Keep original</option>
+            <option value="2048">2048 px</option>
+            <option value="1024">1024 px</option>
+            <option value="512" selected>512 px</option>
+            <option value="256">256 px</option>
+            <option value="128">128 px</option>
+          </select>
+        </label>
+        <label class="field">Format
+          <select id="o-tex-format">
+            <option value="jpeg" selected>JPEG (PNG if it has transparency)</option>
+            <option value="webp">WebP — smallest, needs EXT_texture_webp</option>
+            <option value="png">PNG</option>
+            <option value="keep">Keep original format</option>
+          </select>
+        </label>
+        <label class="field">Quality <span id="o-quality-val" class="muted"></span>
+          <input id="o-quality" type="range" min="40" max="100" step="5" value="85">
+        </label>
+
+        <h3 class="side-h">Mesh</h3>
+        <label class="field">Keep triangles <span id="o-simplify-val" class="muted"></span>
+          <input id="o-simplify" type="range" min="5" max="100" step="5" value="100">
+        </label>
+        <label class="field">Max shape change <span id="o-error-val" class="muted"></span>
+          <input id="o-error" type="range" min="0.5" max="10" step="0.5" value="2">
+        </label>
+        <label class="check"><input id="o-lock-border" type="checkbox" checked> Keep open edges (avoid holes)</label>
+
+        <h3 class="side-h">Output</h3>
+        <label class="check"><input type="radio" name="o-mode" value="subfolder" checked> Save to <code>optimized/</code> subfolder</label>
+        <label class="check"><input type="radio" name="o-mode" value="replace"> Replace originals (backup in <code>_originals/</code>)</label>
+      </div>
+
+      <div class="side-panel lib-only">
+      <input id="search" type="search" placeholder="Search…  ( / )" autocomplete="off" spellcheck="false">
+
+      <label class="field">Pack
+        <select id="f-pack"><option value="">All packs</option></select>
+      </label>
+      <label class="field">Collection
+        <select id="f-collection"><option value="">All collections</option></select>
+      </label>
+      <label class="field">Format
+        <select id="f-format"><option value="">Any format</option></select>
+      </label>
+      <label class="field">Type
+        <select id="f-kind"><option value="">Everything</option></select>
+      </label>
+      <label class="check"><input id="f-fav" type="checkbox"> Favorites only</label>
+
+      <div class="field">Tags</div>
+      <div id="tags" class="tags"></div>
+
+      <div class="thumb-box">
+        <label class="check"><input id="auto-thumbs" type="checkbox"> Generate thumbnails while browsing</label>
+        <button id="thumbs-all" type="button">Generate all missing</button>
+        <div id="thumb-status" class="muted"></div>
+      </div>
+      </div>
+    </aside>
+
+    <main class="main opt-only" aria-label="Models to optimize">
+      <div class="toolbar">
+        <span id="o-summary" class="muted">Choose a folder and click “Load models”.</span>
+        <div class="row">
+          <button id="o-run" type="button" class="primary" disabled>Optimize all</button>
+        </div>
+      </div>
+      <table class="o-table">
+        <thead>
+          <tr>
+            <th><input id="o-check-all" type="checkbox" checked aria-label="Select all"></th>
+            <th>File</th>
+            <th class="num">Size</th>
+            <th class="num">Triangles</th>
+            <th>Textures</th>
+            <th class="num">Optimized</th>
+          </tr>
+        </thead>
+        <tbody id="o-rows"></tbody>
+      </table>
+      <div id="o-status" class="x-status" role="status"></div>
+    </main>
+
+    <section class="viewer opt-only" aria-label="Optimize preview">
+      <div class="viewer-head">
+        <div>
+          <h2 id="o-name">Preview</h2>
+          <div id="o-meta" class="muted">Select a file to compare original and optimized.</div>
+        </div>
+      </div>
+      <div id="o-stage" class="stage">
+        <div id="o-stage-status" class="stage-status"></div>
+      </div>
+      <div class="viewer-panel">
+        <div class="formats" role="group" aria-label="Show">
+          <button id="o-show-orig" type="button">Original</button>
+          <button id="o-show-opt" type="button" class="active">Optimized</button>
+          <label class="check" style="margin-left:auto"><input id="o-wire" type="checkbox"> Wireframe</label>
+        </div>
+        <table class="o-compare">
+          <thead><tr><th></th><th class="num">Original</th><th class="num">Optimized</th></tr></thead>
+          <tbody id="o-compare"></tbody>
+        </table>
+        <div id="o-notes" class="x-warnings"></div>
+      </div>
+    </section>
+
+    <main class="main lib-only">
+      <div class="toolbar">
+        <span id="count" class="muted"></span>
+        <button id="clear" type="button" class="link">Clear filters</button>
+      </div>
+      <div id="grid" class="grid" role="listbox" aria-label="Assets"></div>
+      <div id="sentinel" class="sentinel"></div>
+      <div id="empty" class="empty" hidden>No assets match.</div>
+    </main>
+
+    <section id="viewer" class="viewer lib-only" aria-label="Viewer">
+      <div class="viewer-head">
+        <div>
+          <h2 id="v-name">Select an asset</h2>
+          <div id="v-meta" class="muted"></div>
+        </div>
+        <button id="v-fav" type="button" class="icon" title="Favorite (f)" aria-label="Favorite" hidden>☆</button>
+        <button id="v-close" type="button" class="icon close" aria-label="Close viewer">✕</button>
+      </div>
+      <div id="stage" class="stage">
+        <div id="v-status" class="stage-status"></div>
+      </div>
+      <div id="v-panel" class="viewer-panel" hidden>
+        <div id="v-formats" class="formats"></div>
+        <div class="row toggles">
+          <label class="check"><input id="t-grid" type="checkbox" checked> Grid</label>
+          <label class="check"><input id="t-wire" type="checkbox"> Wireframe</label>
+          <label class="check"><input id="t-rotate" type="checkbox"> Rotate</label>
+        </div>
+        <label id="v-variant-wrap" class="field" hidden>Texture
+          <select id="v-variant"></select>
+        </label>
+        <label id="v-anim-wrap" class="field" hidden>Animation
+          <select id="v-anim"></select>
+        </label>
+        <dl id="v-stats" class="stats"></dl>
+        <div id="v-tags" class="tags small"></div>
+        <code id="v-path" class="path"></code>
+        <div class="row">
+          <button id="v-copy" type="button">Copy path</button>
+          <a id="v-download" class="button" href="#" download>Download file</a>
+        </div>
+
+        <div class="export">
+          <h3>Use in your game</h3>
+          <div id="x-summary" class="muted"></div>
+          <ul id="x-files" class="x-files"></ul>
+          <div id="x-warnings" class="x-warnings"></div>
+          <label class="field" for="x-dest">Copy into folder</label>
+          <div class="dest-row">
+            <input id="x-dest" type="text" list="x-recent" placeholder="C:\MyGame\Assets\Models" spellcheck="false" autocomplete="off">
+            <button id="x-browse" type="button" title="Choose a folder in File Explorer">Browse…</button>
+          </div>
+          <datalist id="x-recent"></datalist>
+          <div class="row">
+            <button id="x-copy" type="button" class="primary">Copy files to folder</button>
+            <a id="x-zip" class="button" href="#">Download .zip</a>
+          </div>
+          <div id="x-status" class="x-status" role="status"></div>
+        </div>
+
+        <div id="split" class="export" hidden>
+          <h3>Split into separate files</h3>
+          <div class="muted small-text">Each ticked node becomes its own .glb with its textures, transforms baked in and moved to the centre. Hover a row to preview it.</div>
+          <div class="row split-tools">
+            <button id="s-auto" type="button" class="link">Suggested</button>
+            <button id="s-all-meshes" type="button" class="link">Every mesh</button>
+            <button id="s-none" type="button" class="link">None</button>
+          </div>
+          <div id="s-tree" class="tree" role="tree"></div>
+          <div class="row">
+            <label class="field inline">Pivot
+              <select id="s-pivot">
+                <option value="bottom">Bottom centre (sits on floor)</option>
+                <option value="center">Centre of bounds</option>
+                <option value="keep">Keep original position</option>
+              </select>
+            </label>
+          </div>
+          <div class="row">
+            <label class="field inline" title="glTF uses metres. Plain FBX files are usually in centimetres.">Scale
+              <select id="s-scale">
+                <option value="1">1× (as is)</option>
+                <option value="0.01">0.01× (centimetres → metres)</option>
+                <option value="0.1">0.1×</option>
+                <option value="10">10×</option>
+                <option value="100">100× (metres → centimetres)</option>
+              </select>
+            </label>
+          </div>
+          <label class="field" for="s-prefix">File name prefix (optional)</label>
+          <input id="s-prefix" type="text" placeholder="e.g. Hat_" spellcheck="false" autocomplete="off">
+          <div class="row">
+            <button id="s-save" type="button" class="primary">Save parts to folder</button>
+            <button id="s-zip" type="button">Download .zip</button>
+          </div>
+          <div class="muted small-text">Uses the folder from “Copy into folder” above.</div>
+          <div id="s-status" class="x-status" role="status"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script type="module" src="/app.js"></script>
+  <script type="module" src="/optimize.js"></script>
+</body>
+</html>
