@@ -1,8 +1,10 @@
-// Optimize tab: load every .glb/.gltf in a folder, shrink textures and simplify meshes, write the results.
+// Optimize tab: load every .glb/.gltf/.fbx in a folder, shrink textures and simplify meshes, write the results as .glb.
 // Everything runs in the browser; the server only lists/reads the folder and writes the output files.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { TGALoader } from 'three/addons/loaders/TGALoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -49,13 +51,15 @@ const loader = new GLTFLoader()
   .setDRACOLoader(new DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/draco/gltf/'))
   .setMeshoptDecoder(MeshoptDecoder);
 
+const isFbx = (f) => /\.fbx$/i.test(f.path);
+
 // Always read from the backup when there is one, so re-running never optimizes an already-optimized file.
 const inputPath = (f) => (f.backup ? `${S.backupDir}/${f.path}` : f.path);
 const localUrl = (rel) => `/local/${S.token}/` + rel.split('/').map(encodeURIComponent).join('/');
 
 // ---------- Settings ----------
 
-const SETTING_IDS = ['o-tex-size', 'o-tex-format', 'o-quality', 'o-simplify', 'o-error', 'o-lock-border', 'o-recursive'];
+const SETTING_IDS = ['o-tex-size', 'o-tex-format', 'o-quality', 'o-simplify', 'o-error', 'o-lock-border', 'o-fbx-scale', 'o-recursive'];
 
 function readConfig() {
   return {
@@ -65,6 +69,7 @@ function readConfig() {
     simplify: Number($('o-simplify').value) / 100,
     error: Number($('o-error').value) / 100,
     lockBorder: $('o-lock-border').checked,
+    fbxScale: $('o-fbx-scale').value,
     mode: document.querySelector('input[name="o-mode"]:checked').value,
   };
 }
@@ -165,7 +170,8 @@ function makeCanvas(w, h) {
 }
 
 // Halve repeatedly before the final resize: a single big drawImage step aliases badly.
-function resizeImage(img, w, h) {
+// flip: FBX textures use flipY (glTF's don't), so their pixels are written upside down to match glTF UVs.
+function resizeImage(img, w, h, flip) {
   let src = img;
   let sw = img.width;
   let sh = img.height;
@@ -181,6 +187,10 @@ function resizeImage(img, w, h) {
   const out = makeCanvas(w, h);
   const ctx = out.getContext('2d', { willReadFrequently: true });
   ctx.imageSmoothingQuality = 'high';
+  if (flip) {
+    ctx.translate(0, h);
+    ctx.scale(1, -1);
+  }
   ctx.drawImage(src, 0, 0, w, h);
   return out;
 }
@@ -200,6 +210,11 @@ async function encode(canvas, type, quality) {
 async function processTexture(tex, source, cfg, notes) {
   const img = tex.image;
   if (!img?.width) return null;
+  // Raw pixel data (e.g. TGA): leave it to the exporter, which writes it as PNG at full size.
+  if (img.data) {
+    notes.add('TGA textures were converted to PNG but not resized.');
+    return null;
+  }
   const orig = await originalImage(source, tex);
   const max = cfg.texSize || Infinity;
   const scale = Math.min(1, max / Math.max(img.width, img.height));
@@ -207,10 +222,11 @@ async function processTexture(tex, source, cfg, notes) {
   const h = Math.max(1, Math.round(img.height * scale));
   const resized = w !== img.width || h !== img.height;
 
-  let type = cfg.texFormat === 'keep' ? orig?.mimeType || 'image/png' : `image/${cfg.texFormat}`;
+  const guessed = /\.jpe?g(\?|#|$)/i.test(img.src || '') ? 'image/jpeg' : 'image/png';
+  let type = cfg.texFormat === 'keep' ? orig?.mimeType || guessed : `image/${cfg.texFormat}`;
   if (!resized && orig && orig.mimeType === type) return orig;
 
-  const canvas = resizeImage(img, w, h);
+  const canvas = resizeImage(img, w, h, tex.flipY);
   if (type === 'image/jpeg' && hasTransparency(canvas)) {
     type = 'image/png';
     notes.add('Textures with transparency were kept as PNG (JPEG has no alpha).');
@@ -233,11 +249,64 @@ function disposeScene(root) {
   });
 }
 
-async function optimizeFile(file, cfg) {
+// FBXLoader makes Phong/Lambert materials; glTF only has PBR, and the exporter would write them half-metallic.
+function toStandard(m) {
+  if (!m.isMeshPhongMaterial && !m.isMeshLambertMaterial) return m;
+  const keys = ['name', 'color', 'map', 'normalMap', 'normalScale', 'emissive', 'emissiveMap', 'emissiveIntensity', 'aoMap', 'alphaMap', 'transparent', 'opacity', 'alphaTest', 'side', 'vertexColors', 'flatShading'];
+  // FBX shininess is rarely meaningful (exporters write a default), so use a matte look.
+  const s = new THREE.MeshStandardMaterial({ metalness: 0, roughness: m.isMeshPhongMaterial ? 0.8 : 1 });
+  for (const k of keys) if (m[k] !== undefined) s[k] = m[k]?.isColor || m[k]?.isVector2 ? m[k].clone() : m[k];
+  m.dispose();
+  return s;
+}
+
+// glTF uses metres; plain FBX exports are usually centimetres. "auto" guesses from the size.
+function fbxScale(root, setting, notes) {
+  if (setting !== 'auto') return Number(setting) || 1;
+  const size = new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3());
+  if (Math.max(size.x, size.y, size.z) <= 50) return 1;
+  notes?.add('FBX scaled ×0.01 because it looked like centimetres (change under FBX → Scale).');
+  return 0.01;
+}
+
+// → { scene, animations, source } for .glb/.gltf/.fbx alike. FBX content goes under a wrapper group so
+// exporting scene.children keeps the FBX root (and the unit scale applied to it).
+async function loadModel(file, cfg, notes) {
   const url = localUrl(inputPath(file));
-  const gltf = await loader.loadAsync(url);
-  const source = { parser: gltf.parser, url: new URL(url, location.href).href };
+  if (!isFbx(file)) {
+    const gltf = await loader.loadAsync(url);
+    return { scene: gltf.scene, animations: gltf.animations, source: { parser: gltf.parser, url: new URL(url, location.href).href } };
+  }
+  // FBXLoader returns before its textures have loaded; the manager's onLoad fires once they all have (or failed).
+  const manager = new THREE.LoadingManager();
+  const settled = new Promise((resolve) => (manager.onLoad = resolve));
+  manager.addHandler(/\.tga$/i, new TGALoader(manager));
+  const root = await new FBXLoader(manager).loadAsync(url);
+  await settled;
+  root.traverse((o) => {
+    for (const m of [o.material].flat().filter(Boolean)) {
+      for (const [k, v] of Object.entries(m)) {
+        if (!v?.isTexture || v.image?.width) continue;
+        m[k] = null;
+        notes?.add(`Skipped a texture that couldn't be found (${v.name || k}).`);
+      }
+    }
+  });
+  const converted = new Map();
+  const convert = (m) => converted.get(m) || converted.set(m, toStandard(m)).get(m);
+  root.traverse((o) => {
+    if (o.material) o.material = Array.isArray(o.material) ? o.material.map(convert) : convert(o.material);
+  });
+  root.scale.multiplyScalar(fbxScale(root, cfg.fbxScale, notes));
+  const scene = new THREE.Group();
+  scene.add(root);
+  return { scene, animations: root.animations || [], source: null };
+}
+
+async function optimizeFile(file, cfg) {
   const notes = new Set();
+  const gltf = await loadModel(file, cfg, notes);
+  const source = gltf.source;
   try {
     if (cfg.simplify < 1) {
       await MeshoptSimplifier.ready;
@@ -311,7 +380,35 @@ function glbInfo(glb) {
   return { tris: Math.round(tris), textures, bytes: glb.length };
 }
 
+// FBX has no cheap header to read, so load it and count from the scene.
+async function fbxInfo(file) {
+  const { scene } = await loadModel(file, readConfig());
+  try {
+    let tris = 0;
+    const textures = new Set();
+    scene.traverse((o) => {
+      if (!o.isMesh) return;
+      const g = o.geometry;
+      tris += (g.index ? g.index.count : g.attributes.position.count) / 3;
+      for (const m of [o.material].flat().filter(Boolean)) for (const v of Object.values(m)) if (v?.isTexture) textures.add(v);
+    });
+    // Embedded textures have blob: URLs, so fall back to the texture's name; '' when neither says.
+    const ext = (t) => {
+      const m = [t.image?.src, t.name].map((s) => /\.(png|jpe?g|tga|webp)$/i.exec((s || '').split(/[?#]/)[0])).find(Boolean);
+      return m ? m[1].toLowerCase().replace('jpg', 'jpeg') : '';
+    };
+    return {
+      tris: Math.round(tris),
+      textures: [...textures].map((t) => ({ mime: ext(t), bytes: 0, size: t.image?.width ? [t.image.width, t.image.height] : null })),
+      bytes: file.size,
+    };
+  } finally {
+    disposeScene(scene);
+  }
+}
+
 async function fetchInfo(file) {
+  if (isFbx(file)) return fbxInfo(file);
   const res = await fetch(localUrl(inputPath(file)));
   if (!res.ok) throw new Error(`Couldn't read file (${res.status})`);
   const buf = new Uint8Array(await res.arrayBuffer());
@@ -371,7 +468,7 @@ async function loadFolder() {
     S.files = data.files.map((f) => ({ ...f, checked: true, info: null, result: null }));
     $('o-dir').value = data.dir;
     applyRecent(data);
-    setStatus(S.files.length ? '' : 'No .glb or .gltf files in this folder.');
+    setStatus(S.files.length ? '' : 'No .glb, .gltf or .fbx files in this folder.');
     renderTable();
     clearPreview();
     for (const f of S.files) {
@@ -411,6 +508,7 @@ function renderRow(f) {
   const cells = [el('td'), el('td', 'file', f.path), el('td', 'num', formatSize(f.size)), el('td', 'num'), el('td', 'tex'), el('td', 'num')];
   cells[0].append(box);
   if (f.backup) cells[1].append(el('div', 'tex', 'optimized in place — reading the backup'));
+  if (isFbx(f)) cells[1].append(el('div', 'tex', 'FBX → .glb'));
   if (f.info?.error) cells[4].append(el('span', 'err', f.info.error));
   else if (f.info) {
     cells[3].textContent = f.info.tris.toLocaleString();
@@ -472,6 +570,7 @@ async function runAll() {
   S.busy = false;
   renderSummary();
   const where = cfg.mode === 'replace' ? `in place (originals in ${S.backupDir}/)` : `to ${S.outputDir}/`;
+  if (cfg.mode === 'replace' && files.some((f) => !/\.glb$/i.test(f.path))) notes.add(`.gltf/.fbx files can't be replaced by a .glb, so they were saved to ${S.outputDir}/.`);
   setStatus(`${failed ? `⚠ ${failed} failed. ` : '✓ '}Saved ${files.length - failed} file${files.length - failed === 1 ? '' : 's'} ${where}` + (notes.size ? `\n${[...notes].map((n) => 'ℹ ' + n).join('\n')}` : ''), failed ? 'err' : 'ok');
 }
 
@@ -582,7 +681,7 @@ async function select(i) {
   const seq = ++S.previewSeq;
   $('o-stage-status').textContent = 'Loading…';
   try {
-    const gltf = await loader.loadAsync(localUrl(inputPath(f)));
+    const gltf = await loadModel(f, readConfig());
     if (seq !== S.previewSeq) return disposeScene(gltf.scene);
     setPreviewObject('opt', null);
     setPreviewObject('orig', gltf);
@@ -682,7 +781,9 @@ for (const id of SETTING_IDS) {
   $(id).addEventListener('input', () => {
     showSettingValues();
     saveSettings();
-    if (id !== 'o-recursive') schedulePreview();
+    // The scale changes the original too, so reload both sides of the preview.
+    if (id === 'o-fbx-scale' && S.files[S.selected] && isFbx(S.files[S.selected])) select(S.selected);
+    else if (id !== 'o-recursive') schedulePreview();
   });
 }
 for (const r of document.querySelectorAll('input[name="o-mode"]')) r.addEventListener('change', saveSettings);

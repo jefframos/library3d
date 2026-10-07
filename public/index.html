@@ -65,6 +65,15 @@
         </label>
         <label class="check"><input id="o-lock-border" type="checkbox" checked> Keep open edges (avoid holes)</label>
 
+        <h3 class="side-h">FBX</h3>
+        <label class="field" title="FBX files are converted to .glb. glTF uses metres; plain FBX files are often in centimetres.">Scale
+          <select id="o-fbx-scale">
+            <option value="auto" selected>Auto (×0.01 if it looks like centimetres)</option>
+            <option value="0.01">×0.01 (centimetres → metres)</option>
+            <option value="1">×1 (already in metres)</option>
+          </select>
+        </label>
+
         <h3 class="side-h">Output</h3>
         <label class="check"><input type="radio" name="o-mode" value="subfolder" checked> Save to <code>optimized/</code> subfolder</label>
         <label class="check"><input type="radio" name="o-mode" value="replace"> Replace originals (backup in <code>_originals/</code>)</label>

@@ -173,10 +173,14 @@ async function readSettings() {
   try {
     s = JSON.parse(await readFile(SETTINGS, 'utf8'));
   } catch {}
+  // Drop folders that have since been deleted, moved or renamed, so the page never offers a path that's gone.
+  const exists = async (d) => typeof d === 'string' && !!(await stat(d).catch(() => null))?.isDirectory();
   const out = {};
   for (const [last, recent] of Object.values(SETTING_KEYS)) {
-    out[last] = typeof s[last] === 'string' ? s[last] : '';
-    out[recent] = Array.isArray(s[recent]) ? s[recent].filter((d) => typeof d === 'string') : [];
+    out[last] = (await exists(s[last])) ? s[last] : '';
+    const list = Array.isArray(s[recent]) ? s[recent] : [];
+    out[recent] = (await Promise.all(list.map(exists))).flatMap((ok, i) => (ok ? [list[i]] : []));
+    if (!out[last]) out[last] = out[recent][0] || '';
   }
   return out;
 }
@@ -232,7 +236,7 @@ async function pickFolderRoute(req, res) {
 // The page can only read folders it explicitly opened (POST, so other sites can't trigger it); each gets a random token.
 
 const openFolders = new Map(); // token -> absolute dir
-const MODEL_FILE = /\.(glb|gltf)$/i;
+const MODEL_FILE = /\.(glb|gltf|fbx)$/i;
 const OUTPUT_DIR = 'optimized';
 const BACKUP_DIR = '_originals';
 
@@ -275,18 +279,28 @@ function resolveInFolder(token, rel) {
   return { dir, full };
 }
 
+// FBX files often reference textures by a path that doesn't exist here (the author's machine, a dropped "Textures\"
+// sub-folder). When a requested image is missing, serve the same-named image from anywhere in the opened folder.
+async function findImageByName(dir, name) {
+  if (!/\.(png|jpe?g|gif|tga)$/i.test(name)) return null;
+  const entries = await readdir(dir, { recursive: true, withFileTypes: true }).catch(() => []);
+  const hit = entries.find((e) => e.isFile() && e.name.toLowerCase() === name.toLowerCase());
+  return hit ? path.join(hit.parentPath, hit.name) : null;
+}
+
 // Writes an optimized GLB. mode "subfolder": <dir>/optimized/<path>.glb. mode "replace": backs the original up to
 // <dir>/_originals/<path> (only the first time, so the true original is kept) and overwrites it.
+// .gltf/.fbx inputs become a new .glb, so they always go to the subfolder.
 async function writeOptimized(req, res, url) {
   const rel = url.searchParams.get('path') || '';
   const mode = url.searchParams.get('mode') === 'replace' ? 'replace' : 'subfolder';
   if (req.headers['content-type'] !== 'model/gltf-binary') return sendJson(res, 415, { error: 'Expected model/gltf-binary' });
   const { dir, full: source } = resolveInFolder(url.searchParams.get('token') || '', encodeURIComponent(rel).replaceAll('%2F', '/'));
-  if (!MODEL_FILE.test(rel)) return sendJson(res, 400, { error: 'Only .glb/.gltf inputs can be optimized' });
+  if (!MODEL_FILE.test(rel)) return sendJson(res, 400, { error: 'Only .glb/.gltf/.fbx inputs can be optimized' });
   const body = await readBody(req, MAX_GENERATED_BYTES);
   if (body.length < 12 || body.toString('latin1', 0, 4) !== 'glTF') return sendJson(res, 400, { error: 'Not a GLB file' });
 
-  const outRel = rel.replace(/\.gltf$/i, '.glb');
+  const outRel = rel.replace(/\.(gltf|fbx)$/i, '.glb');
   let target;
   let backup = null;
   if (mode === 'replace' && /\.glb$/i.test(rel)) {
@@ -449,8 +463,9 @@ const server = http.createServer(async (req, res) => {
     // /local/<token>/<path inside an opened folder> — path-style so .gltf files can resolve their .bin/textures.
     const local = p.match(/^\/local\/([0-9a-f]{24})\/(.+)$/);
     if (local) {
-      const { full } = resolveInFolder(local[1], local[2]);
-      return await serveFile(req, res, full, ASSET_EXTS);
+      const { dir, full } = resolveInFolder(local[1], local[2]);
+      const found = (await stat(full).catch(() => null)) ? full : await findImageByName(dir, path.basename(full));
+      return await serveFile(req, res, found || full, ASSET_EXTS);
     }
     if (p.startsWith('/thumbs/')) {
       const full = resolveInside(THUMBS, p.slice('/thumbs/'.length));
