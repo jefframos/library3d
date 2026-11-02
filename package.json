@@ -7,7 +7,8 @@
   "scripts": {
     "scan": "node scripts/scan.mjs",
     "start": "node server/server.mjs",
-    "dev": "node scripts/scan.mjs && node server/server.mjs"
+    "dev": "node scripts/scan.mjs && node server/server.mjs",
+    "animations:fetch": "node scripts/fetch-animations.mjs"
   },
   "engines": {
     "node": ">=20"
