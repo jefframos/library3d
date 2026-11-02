@@ -1,0 +1,6 @@
+Bowling pin models from Poly Pizza (https://poly.pizza) - CC-BY 3.0 (attribution required)
+https://creativecommons.org/licenses/by/3.0/
+
+bowling_pin.glb       - "Bowling Pin" by Jakob Hippe       - https://poly.pizza/m/d1ZCN1qopib
+bowling_pins_set.glb  - "Bowling pins" by Poly by Google   - https://poly.pizza/m/7RQbiSQVGNy
+bowling_pin_poly.glb  - "Bowling pin" by Poly by Google    - https://poly.pizza/m/92eI1h_UJpU

@@ -1,0 +1,12 @@
+Basketball models from Poly Pizza (https://poly.pizza)
+
+CC0 1.0 (public domain, no attribution required):
+basketball_and_hoop.glb          - "Basket ball and hoop" by Armory_3D  - https://poly.pizza/m/i3LLacyQP4
+
+CC-BY 3.0 (attribution required - https://creativecommons.org/licenses/by/3.0/):
+basketball_court.glb             - "Basketball court" by Poly by Google - https://poly.pizza/m/85FpUr2fHkH
+basketball_hoop_toy_animated.glb - "Basket Ball Toy" by 598merds        - https://poly.pizza/m/KOxezucwug
+basketball_poly.glb              - "Basketball" by Poly by Google       - https://poly.pizza/m/eopD_12UuB8
+basketball_jtoastie.glb          - "Basket Ball" by J-Toastie           - https://poly.pizza/m/blRgRaL56h
+basketball_zsky.glb              - "Basket Ball" by Zsky                - https://poly.pizza/m/QkiVKRTbqB
+basketball_zer0time.glb          - "Basketball" by Zer0_Time            - https://poly.pizza/m/wNXXIhP0ip

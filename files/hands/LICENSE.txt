@@ -1,0 +1,26 @@
+Hand models
+
+W3C Software and Document License (WebXR Input Profiles, https://github.com/immersive-web/webxr-input-profiles) - permissive, keep this notice:
+vr/webxr_generic_hand_left.glb / _right.glb - "generic-hand" (rigged, joints match WebXR hand-tracking spec)
+
+CC0 1.0 (Quaternius via Poly Pizza, no attribution required):
+stylized/lightning_hands.glb   - "Lightning Hands" - https://poly.pizza/m/39uv7ux42v
+gloves/glove_quaternius.glb    - "Glove"           - https://poly.pizza/m/l1zv4LaA4I
+
+CC-BY 3.0 (Poly Pizza, attribution required - https://creativecommons.org/licenses/by/3.0/):
+vr/vr_pointer_hand.glb             - "VR Pointer Hand" by Aaron Clifford   - https://poly.pizza/m/9aLlvt7zGRv
+vr/shooter_hand.glb                - "Shooter Hand" by Vertex             - https://poly.pizza/m/mUNaw8xpcQ
+human/realistic_hand_rigged.glb    - "Realistic Hand" by J-Toastie        - https://poly.pizza/m/2lEkhDqfQf
+human/rigged_hand.glb              - "Rigged Hand" by J-Toastie           - https://poly.pizza/m/BEy8jbxm6A
+human/human_hand.glb               - "Human hand" by Nouri Mohamed        - https://poly.pizza/m/eMSuJKMz6vx
+human/hand_google.glb              - "Hand" by Poly by Google             - https://poly.pizza/m/btWmPNVSKUc
+human/hand_kelliray.glb            - "hand" by Kelli Ray                  - https://poly.pizza/m/5Y0KpTEVXli
+human/hands_pair.glb               - "Hands" by Michael Fuchs             - https://poly.pizza/m/5mO_DgR5eRX
+human/low_poly_hands.glb           - "Low poly hands" by Anastasiia Ku    - https://poly.pizza/m/cGaYRuiPCMe
+human/low_poly_right_hand.glb      - "Low Poly Right Hand" by Raziq Brown - https://poly.pizza/m/cl8ax5B13cp
+human/fists.glb                    - "Fists" by Sean Tarrant              - https://poly.pizza/m/0ZYcRcJnZ74
+stylized/skeletal_hand.glb         - "Skeletal Hand" by Jeremy Swan       - https://poly.pizza/m/3b3VmmxXZ7S
+stylized/crab_hand.glb             - "Crab hand" by Poly by Google        - https://poly.pizza/m/6Mkzj62qX2d
+gloves/gloved_hand.glb             - "Gloved Hand" by J-Toastie           - https://poly.pizza/m/MTB4egc4Vh
+gloves/boxing_glove.glb            - "Boxing Glove" by J-Toastie          - https://poly.pizza/m/35PCBHLrd4
+gloves/boxing_gloves_pair.glb      - "Boxing Gloves" by Zsky              - https://poly.pizza/m/l2S6HNEpey
