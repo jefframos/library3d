@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 1ce05a9bb8cf8c34890ad308705a8ca4
+timeCreated: 1480913312
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 77703
+  packageName: Level 1 Monster Pack
+  packageVersion: 2
+  assetPath: Assets/Level 1 Monster Pack/Prefabs/Slime/Slime_Red.prefab
+  uploadId: 157377

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 9aad9de7cbca6d84b82891c3a1e63e34
+timeCreated: 1480913317
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 77703
+  packageName: Level 1 Monster Pack
+  packageVersion: 2
+  assetPath: Assets/Level 1 Monster Pack/Prefabs/Slime/Slime_Blue.prefab
+  uploadId: 157377
